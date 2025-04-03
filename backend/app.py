@@ -5,168 +5,169 @@ import json
 import boto3
 import os
 import base64
-from botocore.exceptions import ClientError
 from datetime import datetime
 from openai import OpenAI
 from chalicelib.prompt import EMAIL_GENERATION_PROMPT
+import traceback
 
 load_dotenv()
 
-AWS_AUDIO_BUCKET = os.getenv("AWS_AUDIO_BUCKET", "")
-AWS_TRANSCRIPT_BUCKET = os.getenv("AWS_TRANSCRIPT_BUCKET", "")
-AWS_EMAIL_BUCKET = os.getenv("AWS_EMAIL_BUCKET")
+AWS_BUCKET = os.getenv("AWS_BUCKET", "")
 AWS_REGION = os.getenv("AWS_REGION", "eu-west-2")
+BACKUP = os.getenv("BACKUP", None)
+if not os.getenv("OPENAI_API_KEY"):
+    raise Exception("OPENAI_API_KEY not set in environment")
+if not os.getenv("ANTHROPIC_API_KEY"):
+    raise Exception("ANTHROPIC_API_KEY not set in environment")
 
 app = Chalice(app_name="green-pathways-backend")
 app.lambda_function(name="green-pathways-backend-dev").environment_variables = {
-    "AWS_AUDIO_BUCKET": AWS_AUDIO_BUCKET,
-    "AWS_TRANSCRIPT_BUCKET": AWS_TRANSCRIPT_BUCKET,
-    "AWS_EMAIL_BUCKET": AWS_EMAIL_BUCKET,
+    "AWS_BUCKET": AWS_BUCKET,
     "AWS_REGION": AWS_REGION,
+    "BACKUP": None
 }
 
-s3 = boto3.client('s3', region_name=AWS_REGION)
+if BACKUP == "S3":
+    s3 = boto3.client('s3', region_name=AWS_REGION)
+lambda_client = boto3.client('lambda', region_name=AWS_REGION)
 openai_client = OpenAI()
 anthropic_client = anthropic.Anthropic()
 
-
-@app.route("/upload", methods=["POST"], cors=True)
-def upload():
-    try:
-        data = json.loads(app.current_request.raw_body)
-        audio_file = data["audio_file"]  # Expecting base64 encoded audio
-        
-        # Decode base64 audio
-        audio_data = base64.b64decode(audio_file)
-        
-        # Generate filename using current datetime
-        filename = f"audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
-        
-        # Upload to S3
-        bucket_name = os.getenv("AWS_AUDIO_BUCKET")
+def backup(filename, data, content_type):
+    if not BACKUP:
+        return
+    if BACKUP == "S3":
+        bucket_name = os.getenv("AWS_BUCKET")
         if not bucket_name:
-            return Response(
-                body={"error": "AWS_AUDIO_BUCKET not configured"},
-                status_code=500
-            )
+            raise Exception("AWS_BUCKET not configured")
             
         s3.put_object(
             Bucket=bucket_name,
             Key=filename,
-            Body=audio_data,
-            ContentType='audio/wav'
+            Body=data,
+            ContentType=content_type
+        )
+        return
+    if BACKUP == "local":
+        type = "w" if content_type=="text/plain" else "wb"
+        with open(filename, type) as f:
+            f.write(data)
+        print(f"{filename} written")
+
+
+@app.route("/upload", methods=["POST"], cors=True)
+def upload():
+    print("Got here")
+    try:
+        data = json.loads(app.current_request.raw_body)
+        audio_file = data["audio_file"]  # Expecting base64 encoded audio
+        content_type = data.get("content_type", "audio/webm")  # Default to webm
+
+        print(f"Got data: {len(audio_file)} characters")
+
+        if os.environ.get("CHALICE_LOCAL"):
+            return process_audio()
+
+        # Asynchronously invoke the process_audio lambda
+        lambda_payload = {
+            "audio_file": audio_file,  # Send the original base64 data
+            "content_type": content_type
+        }
+        
+        lambda_client.invoke(
+            FunctionName="green-pathways-backend-dev-process_audio",
+            InvocationType='Event',  # Asynchronous invocation
+            Payload=json.dumps(lambda_payload)
         )
         
         return {
-            "message": "Audio uploaded successfully",
-            "filename": filename,
+            "message": "Audio uploaded successfully and processing started",
         }
         
-    except ClientError as e:
-        return Response(
-            body={"error": f"S3 error: {str(e)}"},
-            status_code=500
-        )
     except Exception as e:
+        print(e)
         return Response(
             body={"error": str(e)},
             status_code=500
         )
 
 
-@app.on_s3_event(bucket=AWS_AUDIO_BUCKET)
-def on_audio_upload(event):
-    temp_file_path = f"/tmp/{event.key}"
+@app.route("/process-audio", methods=["POST"], cors=True)
+def process_audio():
     try:
-        # Get the audio file from S3
-        audio_obj = s3.get_object(Bucket=event.bucket, Key=event.key)
-        audio_data = audio_obj['Body'].read()
+        data = json.loads(app.current_request.raw_body)
+        audio_file = data["audio_file"]  # Expecting base64 encoded audio
+        content_type = data.get("content_type", "audio/webm")
         
-        # Create a temporary file to store the audio data
-        with open(temp_file_path, "wb") as f:
-            f.write(audio_data)
+        print(f"Lambda got data: {len(audio_file)} characters")
+
+        # Decode base64 audio
+        audio_bytes = base64.b64decode(audio_file)
         
-        # Open the temporary file for Whisper API
-        with open(temp_file_path, "rb") as audio_file:
-            transcription = openai_client.audio.transcriptions.create(
-                model="gpt-4o-transcribe", 
-                file=audio_file
-            )
+        # Generate filename prefix using current datetime
+        file_key = datetime.now().strftime('%Y%m%d_%H%M%S')
+        extension = content_type.split("/")[1]
+        
+        backup(f"audio/{file_key}.{extension}", audio_bytes, content_type)
 
-        # Store the transcription back in S3
-        transcript_key = f"{os.path.splitext(event.key)[0]}_transcript.txt"
-        s3.put_object(
-            Bucket=AWS_TRANSCRIPT_BUCKET,
-            Key=transcript_key,
-            Body=transcription.text.strip(),
-            ContentType='text/plain'
-        )
-
-        print(f"Successfully transcribed {event.key} to {transcript_key}")
-        return {
-            "statusCode": 200,
-            "body": {
-                "message": "Audio transcribed successfully",
-                "audio_file": event.key,
-                "transcript_file": transcript_key
-            }
-        }
-
-    except Exception as e:
-        print(f"Error processing {event.key}: {str(e)}")
-        return {
-            "statusCode": 500,
-            "body": {"error": str(e)}
-        }
-    finally:
-        # Clean up the temporary file
+        transcription_text = ""        
         try:
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-        except Exception as e:
-            print(f"Warning: Failed to clean up temporary file {temp_file_path}: {str(e)}")
+            # Create a temporary file to store the audio data
+            temp_file_path = f"/tmp/audio/{file_key}.{extension}"
+            # Write audio data to temporary file
+            with open(temp_file_path, "wb") as f:
+                f.write(audio_bytes)
+            
+            # Process with Whisper API
+            with open(temp_file_path, "rb") as audio_temp:
+                print("Contacting OpenAI")
+                try:
+                    transcription = openai_client.audio.transcriptions.create(
+                        model="gpt-4o-transcribe", 
+                        file=audio_temp
+                    )
+                except Exception as api_error:
+                    print(f"OpenAI error: {str(api_error)}")
+                    raise api_error
+            print(f"Transcript")
+            transcription_text = transcription.text.strip()
 
+            backup(f"transcripts/{file_key}.txt", transcription_text, "text/plain")
+        finally:
+            # Clean up the temporary file
+            try:
+                if os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+            except Exception as e:
+                print(f"Warning: Failed to clean up temporary file {temp_file_path}: {str(e)}")
 
-@app.on_s3_event(bucket=AWS_TRANSCRIPT_BUCKET)
-def on_transcript_upload(event):
-    try:
-        # Get the transcript file from S3
-        transcript_obj = s3.get_object(Bucket=event.bucket, Key=event.key)
-        transcript_data = transcript_obj['Body'].read()
         
+        message_content = EMAIL_GENERATION_PROMPT.replace("{{TRANSCRIPT}}", transcription_text)
         response = anthropic_client.messages.create(
             model="claude-3.7-sonnet",
             max_tokens=8192,
             temperature=0.6,
             messages=[
                 {
-                    "role": "system",
-                    "content": EMAIL_GENERATION_PROMPT
-                },
-                {
                     "role": "user",
-                    "content": transcript_data
-                }
+                    "content": message_content
+                },
             ]
         )
         email_output = response.content[0].text.strip()
-        email_key = f"{os.path.splitext(event.key)[0]}_email.txt"
-        s3.put_object(
-            Bucket=AWS_EMAIL_BUCKET,
-            Key=email_key,
-            Body=email_output,
-            ContentType='text/plain'
-        )
 
-
+        backup(f"email/{file_key}.txt", email_output, "text/plain")
         return {
             "email_output": email_output
         }
     except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": {"error": str(e)}
-        }
+        print(e, flush=True)
+        traceback.print_exc()
+        return Response(
+            status_code=500,
+            body={"error": str(e)},
+            headers={"Content-Type": "application/json"}
+        )
 
 
 
