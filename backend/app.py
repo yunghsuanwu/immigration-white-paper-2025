@@ -94,11 +94,14 @@ def upload():
 
 @app.route("/process-audio", methods=["POST"], cors=True)
 def process_audio():
+    data = json.loads(app.current_request.raw_body)
+    audio_file = data["audio_file"]  # Expecting base64 encoded audio
+    content_type = data.get("content_type", "audio/webm")
+    process_audio_file(audio_file, content_type)
+
+
+def process_audio_file(audio_file, content_type):
     try:
-        data = json.loads(app.current_request.raw_body)
-        audio_file = data["audio_file"]  # Expecting base64 encoded audio
-        content_type = data.get("content_type", "audio/webm")
-        
         print(f"Lambda got data: {len(audio_file)} characters")
 
         # Decode base64 audio
@@ -112,7 +115,8 @@ def process_audio():
 
         transcription_text = ""        
         try:
-            # Create a temporary file to store the audio data
+            
+            os.makedirs("/tmp/audio", exist_ok=True)
             temp_file_path = f"/tmp/audio/{file_key}.{extension}"
             # Write audio data to temporary file
             with open(temp_file_path, "wb") as f:
@@ -132,7 +136,7 @@ def process_audio():
             print(f"Transcript")
             transcription_text = transcription.text.strip()
 
-            backup(f"transcripts/{file_key}.txt", transcription_text, "text/plain")
+            backup(f"transcript/{file_key}.txt", transcription_text, "text/plain")
         finally:
             # Clean up the temporary file
             try:
@@ -144,7 +148,7 @@ def process_audio():
         
         message_content = EMAIL_GENERATION_PROMPT.replace("{{TRANSCRIPT}}", transcription_text)
         response = anthropic_client.messages.create(
-            model="claude-3.7-sonnet",
+            model="claude-3-7-sonnet-20250219",
             max_tokens=8192,
             temperature=0.6,
             messages=[
