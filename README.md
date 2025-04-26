@@ -9,12 +9,13 @@ A Python server built with Chalice, meant to run on AWS Lambda. A React frontend
 
 ## Running locally
 
-You must have Python3 installed on a Unix-like system.
+You must have Python3 installed on a Unix-like system. AWS doesn't support past 3.12, so be sure to use that version.
 
 Then:
 
 ```bash
 cd backend
+pyenv local 3.12.9
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt

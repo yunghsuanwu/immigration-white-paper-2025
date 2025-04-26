@@ -65,25 +65,8 @@ def upload():
 
         print(f"Got data: {len(audio_file)} characters")
 
-        if os.environ.get("CHALICE_LOCAL"):
-            return process_audio()
+        return process_audio_file(audio_file, content_type)
 
-        # Asynchronously invoke the process_audio lambda
-        lambda_payload = {
-            "audio_file": audio_file,  # Send the original base64 data
-            "content_type": content_type
-        }
-        
-        lambda_client.invoke(
-            FunctionName="green-pathways-backend-dev-process_audio",
-            InvocationType='Event',  # Asynchronous invocation
-            Payload=json.dumps(lambda_payload)
-        )
-        
-        return {
-            "message": "Audio uploaded successfully and processing started",
-        }
-        
     except Exception as e:
         print(e)
         return Response(
@@ -91,19 +74,8 @@ def upload():
             status_code=500
         )
 
-
-@app.route("/process-audio", methods=["POST"], cors=True)
-def process_audio():
-    data = json.loads(app.current_request.raw_body)
-    audio_file = data["audio_file"]  # Expecting base64 encoded audio
-    content_type = data.get("content_type", "audio/webm")
-    process_audio_file(audio_file, content_type)
-
-
 def process_audio_file(audio_file, content_type):
     try:
-        print(f"Lambda got data: {len(audio_file)} characters")
-
         # Decode base64 audio
         audio_bytes = base64.b64decode(audio_file)
         
