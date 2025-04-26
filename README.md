@@ -3,7 +3,7 @@ Audio upload and parse project
 
 # Architecture
 
-A Python server built with Chalice, meant to run on AWS Lambda. A React frontend built with Next.js, deployed to AWS S3 and served with CloudFront.
+A Python server built with Chalice, meant to run on AWS Lambda. Frontend TBD.
 
 # Backend
 
@@ -23,3 +23,27 @@ chalice local --port 5000
 ```
 
 This will create a server at http://127.0.0.1:5000
+
+# Deploying
+
+You need AWS CLI installed. You must have a `~/.aws/credentials` file set up as follows:
+
+```
+[profile green_pathways]
+aws_access_key_id=<our access key>
+aws_secret_access_key=<our secret key>
+region=eu-west-2
+```
+
+Log into the AWS console to get the values for these keys.
+
+Please only deploy code that is merged to the `main` branch.
+
+## Deploying the backend
+
+```bash
+cd backend
+pyenv local 3.12.9
+source .venv/bin/activate
+python deploy.py
+```

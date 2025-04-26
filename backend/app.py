@@ -7,7 +7,7 @@ import os
 import base64
 from datetime import datetime
 from openai import OpenAI
-from chalicelib.prompt import EMAIL_GENERATION_PROMPT
+from chalicelib.prompt import GREENPAPER_PROMPT, MP_PROMPT
 import traceback
 
 load_dotenv()
@@ -116,25 +116,14 @@ def process_audio_file(audio_file, content_type):
                     os.remove(temp_file_path)
             except Exception as e:
                 print(f"Warning: Failed to clean up temporary file {temp_file_path}: {str(e)}")
-
+        greenpaper_output = apply_prompt_to_transcript(GREENPAPER_PROMPT, transcription_text)
+        mp_output = apply_prompt_to_transcript(MP_PROMPT, transcription_text)
         
-        message_content = EMAIL_GENERATION_PROMPT.replace("{{TRANSCRIPT}}", transcription_text)
-        response = anthropic_client.messages.create(
-            model="claude-3-7-sonnet-20250219",
-            max_tokens=8192,
-            temperature=0.6,
-            messages=[
-                {
-                    "role": "user",
-                    "content": message_content
-                },
-            ]
-        )
-        email_output = response.content[0].text.strip()
 
-        backup(f"email/{file_key}.txt", email_output, "text/plain")
+        backup(f"email/{file_key}.txt", greenpaper_output + "\n\n" + mp_output, "text/plain")
         return {
-            "email_output": email_output
+            "greenpaper_output": greenpaper_output,
+            "mp_output": mp_output
         }
     except Exception as e:
         print(e, flush=True)
@@ -146,4 +135,18 @@ def process_audio_file(audio_file, content_type):
         )
 
 
+def apply_prompt_to_transcript(prompt, transcription_text):
+        message_content = prompt.replace("{{TRANSCRIPT}}", transcription_text)
+        response = anthropic_client.messages.create(
+            model="claude-3-7-sonnet-20250219",
+            max_tokens=8192,
+            temperature=0.6,
+            messages=[
+                {
+                    "role": "user",
+                    "content": message_content
+                },
+            ]
+        )
+        return response.content[0].text.strip()
 
