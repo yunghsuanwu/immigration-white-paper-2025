@@ -5,9 +5,7 @@ Audio upload and parse project
 
 A Python server built with Chalice, meant to run on AWS Lambda. Frontend TBD.
 
-# Backend
-
-## Running locally
+# Running locally
 
 You must have Python3 installed on a Unix-like system. AWS doesn't support past 3.12, so be sure to use that version.
 
@@ -23,6 +21,17 @@ chalice local --port 5000
 ```
 
 This will create a server at http://127.0.0.1:5000
+
+For running the frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+This will create a frontend at http://127.0.0.1:5173
+
 
 # Deploying
 

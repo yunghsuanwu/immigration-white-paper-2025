@@ -5,7 +5,7 @@ __pycache__
 .venv/
 deployments/
 
-audio/
+backend/audio/
 transcript/
 email/
 *.m4a
