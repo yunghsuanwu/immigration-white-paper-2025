@@ -3,7 +3,7 @@ Audio upload and parse project
 
 # Architecture
 
-A Python server built with Chalice, meant to run on AWS Lambda. Frontend TBD.
+A Python server built with Chalice, meant to run on AWS Lambda. Frontend built with Vite.
 
 # Running locally
 

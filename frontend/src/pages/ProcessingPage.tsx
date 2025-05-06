@@ -16,6 +16,18 @@ const ProcessingPage: React.FC = () => {
   const [submission, setSubmission] = useState<AudioSubmission | null>(null);
   const [error, setError] = useState<string | null>(null);
   
+
+  const pollStatus = async (submissionId: string) => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    const response = await fetch(`${backendUrl}/status/${submissionId}`);
+    if (!response.ok) {
+        throw new Error(`Status check failed: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data;
+};
+
+
   useEffect(() => {
     // Check if we have the submission in sessionStorage
     const storedSubmission = sessionStorage.getItem(`submission_${submissionId}`);

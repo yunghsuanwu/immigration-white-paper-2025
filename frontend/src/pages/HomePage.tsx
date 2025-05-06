@@ -7,63 +7,86 @@ import Button from '../components/ui/Button';
 import AudioRecorder from '../components/audio/AudioRecorder';
 import AudioUploader from '../components/audio/AudioUploader';
 import TextSubmission from '../components/text/TextSubmission';
-import { AudioSubmission } from '../types';
 
 const HomePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'record' | 'upload' | 'text'>('record');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  const uploadToBackend = async (audioBlob: Blob, contentType: string, submissionId: string) => {
+    
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    if (!backendUrl) {
+      throw new Error('Backend URL not configured');
+    }
+    
+    console.log("contentType", contentType);
+    const response = await fetch(`${backendUrl}/upload/${submissionId}`, {
+      method: 'POST',
+      body: audioBlob,
+      headers: {
+        'Content-Type': contentType
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+    
+   return submissionId;
+  };
+  
   const handleRecordingComplete = async (recording: Blob) => {
     setIsSubmitting(true);
+    setError(null);
+    
     try {
       const submissionId = uuidv4();
-      const newSubmission: AudioSubmission = {
-        id: submissionId,
-        recording,
-        transcript: '',
-        emotionalAnalysis: '',
-        formattedResponse: '',
-        filteredResponse: '',
-        createdAt: new Date()
-      };
       
-      sessionStorage.setItem(`submission_${submissionId}`, JSON.stringify({
-        ...newSubmission,
-        recording: null
-      }));
-      (window as any).submissionBlob = recording;
+      // Upload the recording to the backend
+      await uploadToBackend(recording, recording.type || "audio/webm", submissionId);
+      
+      // Navigate to the processing page
       navigate(`/processing/${submissionId}`);
     } catch (error) {
       console.error('Error processing recording:', error);
+      setError('Failed to upload recording. Please try again.');
       setIsSubmitting(false);
     }
   };
 
+const extensionToContentType = (extension: string) => {
+  switch (extension.toLowerCase()) {
+    case "m4a": return "audio/mp4"; // m4a is a subset of mp4
+    case "mp3": return "audio/mpeg";
+    case "wav": return "audio/wav";
+    case "ogg": return "audio/ogg";
+    case "webm": return "audio/webm";
+    case "aac": return "audio/aac";
+    case "flac": return "audio/flac";
+    default: return "application/octet-stream"; // fallback for unknown types
+  }
+};
+  
   const handleFileUpload = async (file: File) => {
     setIsSubmitting(true);
+    setError(null);
+    
     try {
       const submissionId = uuidv4();
-      const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
+      const pieces = file.name.split(".");
+      const extension = pieces[pieces.length - 1];
+      const contentType = extensionToContentType(extension);
       
-      const newSubmission: AudioSubmission = {
-        id: submissionId,
-        recording: fileBlob,
-        transcript: '',
-        emotionalAnalysis: '',
-        formattedResponse: '',
-        filteredResponse: '',
-        createdAt: new Date()
-      };
+      // Upload the file directly
+      await uploadToBackend(file, contentType, submissionId);
       
-      sessionStorage.setItem(`submission_${submissionId}`, JSON.stringify({
-        ...newSubmission,
-        recording: null
-      }));
-      (window as any).submissionBlob = fileBlob;
+      // Navigate to the processing page
       navigate(`/processing/${submissionId}`);
     } catch (error) {
       console.error('Error processing file upload:', error);
+      setError('Failed to upload file. Please try again.');
       setIsSubmitting(false);
     }
   };
@@ -112,13 +135,13 @@ const HomePage: React.FC = () => {
             >
               Upload Audio File
             </Button>
-            <Button 
+            {/* <Button 
               variant={activeTab === 'text' ? 'primary' : 'outline'}
               onClick={() => setActiveTab('text')}
               icon={<HelpCircle className="h-5 w-5" />}
             >
               Text Submission
-            </Button>
+            </Button> */}
           </div>
           
           {activeTab === 'record' && (
@@ -147,7 +170,7 @@ const HomePage: React.FC = () => {
             <li>Share your personal experiences with the benefits system</li>
             <li>Explain how the proposed changes would affect you</li>
             <li>Mention any alternatives that you think would work better</li>
-            <li>Keep your recording under 5 minutes for best results</li>
+            <li>Recordings cannot be longer than 5 minutes</li>
           </ul>
         </div>
       </div>
