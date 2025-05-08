@@ -1,11 +1,18 @@
+
+export const processingSteps = ['transcribing', 'greenpaper', 'email', 'completed'];
+
+export type ProcessingStep = typeof processingSteps[number] | "error";
+
 export interface AudioSubmission {
   id: string;
-  recording: Blob | null;
-  transcript: string;
-  emotionalAnalysis: string;
-  formattedResponse: string;
-  filteredResponse: string;
-  createdAt: Date;
+  status: ProcessingStep;
+  recording?: Blob;
+  transcript?: string;
+  emotionalAnalysis?: string;
+  greenpaper?: string;
+  email?: string;
+  filteredResponse?: string;
+  createdAt?: Date;
 }
 
 export interface AudioRecorderProps {

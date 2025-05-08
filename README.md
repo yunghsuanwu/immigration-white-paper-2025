@@ -12,6 +12,9 @@ You must have Python3 installed on a Unix-like system. AWS doesn't support past 
 Then:
 
 ```bash
+mkdir /tmp/audio
+mkdir /tmp/transcript
+mkdir /tmp/email
 cd backend
 pyenv local 3.12.9
 python -m venv .venv

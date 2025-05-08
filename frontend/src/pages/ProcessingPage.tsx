@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, CheckCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { AudioSubmission, EmotionalAnalysisResult } from '../types';
-import { transcribeAudio, analyzeEmotion, formatForConsultation, filterAbusiveContent } from '../utils/mockApiService';
-
-type ProcessingStep = 'transcribing' | 'analyzing' | 'formatting' | 'filtering' | 'complete' | 'error';
+import { AudioSubmission, ProcessingStep, processingSteps } from '../types';
+import { transcribeAudio, formatForConsultation, filterAbusiveContent } from '../utils/mockApiService';
 
 const ProcessingPage: React.FC = () => {
   const { submissionId } = useParams<{ submissionId: string }>();
@@ -16,8 +14,7 @@ const ProcessingPage: React.FC = () => {
   const [submission, setSubmission] = useState<AudioSubmission | null>(null);
   const [error, setError] = useState<string | null>(null);
   
-
-  const pollStatus = async (submissionId: string) => {
+  const pollStatus = useCallback(async (submissionId: string) => {
     const backendUrl = import.meta.env.VITE_BACKEND_URL;
     const response = await fetch(`${backendUrl}/status/${submissionId}`);
     if (!response.ok) {
@@ -25,15 +22,33 @@ const ProcessingPage: React.FC = () => {
     }
     const data = await response.json();
     return data;
-};
-
+  }, [submissionId]);
 
   useEffect(() => {
+    const updateProgressBars = async() => {
+      if (!submissionId) {
+        return;
+      }
+      try {
+        const submission = await pollStatus(submissionId) as AudioSubmission;
+        setSubmission(submission);
+        if (submission.status === "transcribing") {
+          setProgress(25);
+          return;
+        }
+        if (submission.status === "greenpaper") {
+          setProgress(50);
+
+        }
+      } catch (e) {
+        setError('Submission not found. Please try recording again.');
+        setCurrentStep('error');
+      }
+    };
+    updateProgressBars();
     // Check if we have the submission in sessionStorage
     const storedSubmission = sessionStorage.getItem(`submission_${submissionId}`);
     if (!storedSubmission) {
-      setError('Submission not found. Please try recording again.');
-      setCurrentStep('error');
       return;
     }
     
@@ -58,37 +73,29 @@ const ProcessingPage: React.FC = () => {
     try {
       // Step 1: Transcribe audio
       setCurrentStep('transcribing');
-      setProgress(10);
+      setProgress(25);
       const transcript = await transcribeAudio(sub.recording as Blob);
       sub.transcript = transcript;
       updateSubmission(sub);
       setProgress(30);
-      
-      // Step 2: Analyze emotion
-      setCurrentStep('analyzing');
-      setProgress(40);
-      const emotionalAnalysis = await analyzeEmotion(transcript);
-      sub.emotionalAnalysis = JSON.stringify(emotionalAnalysis);
-      updateSubmission(sub);
-      setProgress(60);
-      
-      // Step 3: Format for consultation
-      setCurrentStep('formatting');
-      setProgress(70);
+            
+      // Step 2: Format for consultation
+      setCurrentStep("greenpaper");
+      setProgress(50);
       const formattedResponse = await formatForConsultation(transcript);
       sub.formattedResponse = formattedResponse;
       updateSubmission(sub);
       setProgress(85);
       
-      // Step 4: Filter abusive content
-      setCurrentStep('filtering');
-      setProgress(90);
+      // Step 3: Filter abusive content
+      setCurrentStep('email');
+      setProgress(75);
       const filteredResponse = await filterAbusiveContent(formattedResponse);
       sub.filteredResponse = filteredResponse;
       updateSubmission(sub);
       
       // Processing complete
-      setCurrentStep('complete');
+      setCurrentStep('completed');
       setProgress(100);
       
       // Automatically navigate to the submission page after a short delay
@@ -148,25 +155,19 @@ const ProcessingPage: React.FC = () => {
               />
               
               <ProcessingStepItem 
-                title="Analyzing sentiment" 
-                status={getStepStatus('analyzing', currentStep)}
+                title="Preparing greenpaper submission" 
+                status={getStepStatus('greenpaper', currentStep)}
                 icon={<Loader2 className="h-6 w-6 animate-spin" />}
                 completedIcon={<CheckCircle className="h-6 w-6 text-green-500" />}
               />
               
               <ProcessingStepItem 
-                title="Formatting your response" 
-                status={getStepStatus('formatting', currentStep)}
+                title="Preparing email to MP" 
+                status={getStepStatus('email', currentStep)}
                 icon={<Loader2 className="h-6 w-6 animate-spin" />}
                 completedIcon={<CheckCircle className="h-6 w-6 text-green-500" />}
               />
               
-              <ProcessingStepItem 
-                title="Filtering content" 
-                status={getStepStatus('filtering', currentStep)}
-                icon={<Loader2 className="h-6 w-6 animate-spin" />}
-                completedIcon={<CheckCircle className="h-6 w-6 text-green-500" />}
-              />
             </div>
             
             {currentStep === 'error' && (
@@ -189,7 +190,7 @@ const ProcessingPage: React.FC = () => {
               </div>
             )}
             
-            {currentStep === 'complete' && (
+            {currentStep === 'completed' && (
               <div className="bg-green-50 border border-green-200 rounded-md p-4 text-center animate-fadeIn">
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
                 <h3 className="text-green-800 font-medium text-lg">Processing Complete!</h3>
@@ -245,10 +246,9 @@ function getStepStatus(
   step: ProcessingStep, 
   currentStep: ProcessingStep
 ): 'waiting' | 'in-progress' | 'completed' {
-  const steps: ProcessingStep[] = ['transcribing', 'analyzing', 'formatting', 'filtering', 'complete'];
   
-  const stepIndex = steps.indexOf(step);
-  const currentIndex = steps.indexOf(currentStep);
+  const stepIndex = processingSteps.indexOf(step);
+  const currentIndex = processingSteps.indexOf(currentStep);
   
   if (stepIndex < currentIndex) {
     return 'completed';
