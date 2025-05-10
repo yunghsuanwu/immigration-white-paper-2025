@@ -1,4 +1,5 @@
 # green-pathways
+
 Audio upload and parse project
 
 # Architecture
@@ -32,8 +33,7 @@ npm install
 npm run dev
 ```
 
-This will create a frontend at http://127.0.0.1:5173
-
+This will create a frontend at http://localhost:5173
 
 # Deploying
 
@@ -50,11 +50,13 @@ Log into the AWS console to get the values for these keys.
 
 Please only deploy code that is merged to the `main` branch.
 
-## Deploying the backend
+## Deploying
 
 ```bash
 cd backend
 pyenv local 3.12.9
 source .venv/bin/activate
 python deploy.py
+cd ../frontend
+./deploy.sh
 ```

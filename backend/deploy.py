@@ -19,7 +19,7 @@ else:
     print(deploy_result.stderr)
 
 env_vars = {"Variables": {}}
-env_var_names = ["AWS_BUCKET", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"]
+env_var_names = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"]
 for var_name in env_var_names:
     env_vars["Variables"][var_name] = os.getenv(var_name)
 env_vars["Variables"]["BACKUP"] = "S3"

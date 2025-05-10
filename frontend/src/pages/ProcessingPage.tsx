@@ -5,8 +5,6 @@ import { Card, CardContent } from "../components/ui/Card";
 import { AudioSubmission, ProcessingStep, processingSteps } from "../types";
 import Button from "../components/ui/Button";
 
-const backendUrl = import.meta.env.VITE_BACKEND_URL;
-
 const ProcessingPage: React.FC = () => {
   const { submissionId } = useParams<{ submissionId: string }>();
   const navigate = useNavigate();
@@ -18,12 +16,7 @@ const ProcessingPage: React.FC = () => {
 
   const transcribeAudio = useCallback(
     async (audioBlob: Blob, contentType: string) => {
-      if (!backendUrl) {
-        throw new Error("Backend URL not configured");
-      }
-
-      console.log("contentType", contentType);
-      const response = await fetch(`${backendUrl}/transcribe`, {
+      const response = await fetch(`/api/transcribe`, {
         method: "POST",
         body: audioBlob,
         headers: {
@@ -41,7 +34,7 @@ const ProcessingPage: React.FC = () => {
   );
 
   const writeSummary = useCallback(async (transcript: string, path: string) => {
-    const response = await fetch(`${backendUrl}/${path}`, {
+    const response = await fetch(`/api/${path}`, {
       method: "POST",
       body: JSON.stringify({ transcript }),
       headers: {
