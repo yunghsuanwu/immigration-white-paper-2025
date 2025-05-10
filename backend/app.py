@@ -22,7 +22,7 @@ app = Chalice(app_name="green-pathways-backend")
 
 openai_client = OpenAI()
 anthropic_client = anthropic.Anthropic()
-
+os.makedirs("/tmp/audio", exist_ok=True)
 SUPPORTED_CONTENT_TYPES = ["audio/mp4", "audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "application/octet-stream"]
 
 @app.route("/transcribe", methods=["POST"], cors=True, content_types=SUPPORTED_CONTENT_TYPES)

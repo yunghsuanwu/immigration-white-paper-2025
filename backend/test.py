@@ -6,7 +6,7 @@ import sys
 
 load_dotenv()
 
-BASE_URL="http://127.0.0.1:8000"
+BASE_URL=os.getenv("REMOTE_URL") if len(sys.argv) > 2 and sys.argv[2] == "remote" else "http://127.0.0.1:8000"
 
 def test_pipeline(filename):
     # 1. First, transcribe the audio
@@ -17,7 +17,7 @@ def test_pipeline(filename):
         if response.status_code != 200:
             print(f"Transcription failed: {response.text}")
             return
-        transcript = response.json()['transcript']
+        transcript = response.text
         print("Transcript:", transcript)
         print("\n---\n")
 
@@ -29,7 +29,7 @@ def test_pipeline(filename):
     if greenpaper_response.status_code != 200:
         print(f"Greenpaper failed: {greenpaper_response.text}")
         return
-    greenpaper_output = greenpaper_response.json()['greenpaper_output']
+    greenpaper_output = greenpaper_response.text
     print("Greenpaper Response:", greenpaper_output)
     print("\n---\n")
 
@@ -41,7 +41,7 @@ def test_pipeline(filename):
     if mpemail_response.status_code != 200:
         print(f"MP Email failed: {mpemail_response.text}")
         return
-    mp_output = mpemail_response.json()['mp_output']
+    mp_output = mpemail_response.text
     print("MP Email Response:", mp_output)
 
 if __name__ == "__main__":
