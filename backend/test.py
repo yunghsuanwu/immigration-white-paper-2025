@@ -3,6 +3,7 @@ import json
 import requests
 import app
 import sys
+import os
 
 load_dotenv()
 

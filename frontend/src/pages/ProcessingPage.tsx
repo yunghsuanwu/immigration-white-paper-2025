@@ -5,6 +5,11 @@ import { Card, CardContent } from "../components/ui/Card";
 import { AudioSubmission, ProcessingStep, processingSteps } from "../types";
 import Button from "../components/ui/Button";
 
+const backendUrl =
+  import.meta.env.MODE === "development"
+    ? "/api"
+    : import.meta.env.VITE_BACKEND_URL;
+
 const ProcessingPage: React.FC = () => {
   const { submissionId } = useParams<{ submissionId: string }>();
   const navigate = useNavigate();
@@ -16,7 +21,7 @@ const ProcessingPage: React.FC = () => {
 
   const transcribeAudio = useCallback(
     async (audioBlob: Blob, contentType: string) => {
-      const response = await fetch(`/api/transcribe`, {
+      const response = await fetch(`${backendUrl}/transcribe`, {
         method: "POST",
         body: audioBlob,
         headers: {
@@ -34,7 +39,7 @@ const ProcessingPage: React.FC = () => {
   );
 
   const writeSummary = useCallback(async (transcript: string, path: string) => {
-    const response = await fetch(`/api/${path}`, {
+    const response = await fetch(`${backendUrl}/${path}`, {
       method: "POST",
       body: JSON.stringify({ transcript }),
       headers: {

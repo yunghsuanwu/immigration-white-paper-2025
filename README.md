@@ -10,6 +10,8 @@ A Python server built with Chalice, meant to run on AWS Lambda. Frontend built w
 
 You must have Python 3.12.9 (the latest version supported by AWS) installed on a Unix-like system.
 
+You will need a `backend/.env` file with `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` set to our API keys.
+
 Then:
 
 ```bash
@@ -51,6 +53,8 @@ Log into the AWS console to get the values for these keys.
 Please only deploy code that is merged to the `main` branch.
 
 ## Deploying
+
+You will need a `frontend/.env.production.local` file with the `VITE_BACKEND_URL` variable set to the output of `chalice url`, which you can run after the `deploy.py` command below.
 
 ```bash
 cd backend
