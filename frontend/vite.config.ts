@@ -8,10 +8,13 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   server: {
-    cors: {
-      // the origin you will be accessing via browser
-      origin: "http://127.0.0.1:5000",
-    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
+      }
+    }
   },
   build: {
     // generate .vite/manifest.json in outDir

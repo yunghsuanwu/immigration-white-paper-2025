@@ -1,17 +1,17 @@
 
-export const processingSteps = ['transcribing', 'greenpaper', 'email', 'completed'];
+export const processingSteps = ['uploading', 'transcribing', 'preparing', 'completed'];
 
 export type ProcessingStep = typeof processingSteps[number] | "error";
 
 export interface AudioSubmission {
   id: string;
-  status: ProcessingStep;
+  contentType: string;
+  status?: ProcessingStep;
   recording?: Blob;
   transcript?: string;
-  emotionalAnalysis?: string;
   greenpaper?: string;
+  emotionalAnalysis?: string;
   email?: string;
-  filteredResponse?: string;
   createdAt?: Date;
 }
 

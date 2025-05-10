@@ -55,9 +55,7 @@ def transcribe():
         logging.info(f"Transcript")
         transcription_text = transcription.text.strip()
 
-        return {
-            "transcript": transcription_text
-        }
+        return transcription_text
     except Exception as e:
         logging.error(e)
         return Response(
@@ -74,13 +72,13 @@ def transcribe():
 
 @app.route("/greenpaper", methods=["POST"], cors=True)
 def greenpaper():
-   return apply_prompt_to_transcript(GREENPAPER_PROMPT, "greenpaper_output")
+   return apply_prompt_to_transcript(GREENPAPER_PROMPT)
 
 @app.route("/mpemail", methods=["POST"], cors=True)
 def mpemail():
-    return apply_prompt_to_transcript(MP_PROMPT, "mp_output")
+    return apply_prompt_to_transcript(MP_PROMPT)
         
-def apply_prompt_to_transcript(prompt, param_name):
+def apply_prompt_to_transcript(prompt):
     try:
         # Get the transcript from the request body
         transcript = app.current_request.json_body.get('transcript')
@@ -89,6 +87,7 @@ def apply_prompt_to_transcript(prompt, param_name):
                 body={"error": "No transcript provided"},
                 status_code=400
             )
+        logging.info(f"Got transcript: length {len(transcript)}")
         message_content = prompt.replace("{{TRANSCRIPT}}", transcript)
         response = anthropic_client.messages.create(
             model="claude-3-7-sonnet-20250219",
@@ -101,9 +100,7 @@ def apply_prompt_to_transcript(prompt, param_name):
                 },
             ]
         )
-        retval = {}
-        retval[param_name] = response.content[0].text.strip()
-        return retval
+        return response.content[0].text.strip()
     except Exception as e:
         logging.error(e)
         return Response(

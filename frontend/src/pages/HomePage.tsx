@@ -7,6 +7,7 @@ import Button from '../components/ui/Button';
 import AudioRecorder from '../components/audio/AudioRecorder';
 import AudioUploader from '../components/audio/AudioUploader';
 import TextSubmission from '../components/text/TextSubmission';
+import { AudioSubmission } from '../types';
 
 const HomePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'record' | 'upload' | 'text'>('record');
@@ -14,27 +15,20 @@ const HomePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const uploadToBackend = async (audioBlob: Blob, contentType: string, submissionId: string) => {
+  const uploadToBackend = async (audioBlob: Blob, contentType: string) => {
+    const submissionId = uuidv4();
+
+    const submission: AudioSubmission = {
+      id: submissionId,
+      contentType,
+      createdAt: new Date(),
+      status: 'uploading'
+    };
     
-    const backendUrl = import.meta.env.VITE_BACKEND_URL;
-    if (!backendUrl) {
-      throw new Error('Backend URL not configured');
-    }
+    sessionStorage.setItem(`submission_${submissionId}`, JSON.stringify(submission));
+    (window as any).submissionBlob = audioBlob;
     
-    console.log("contentType", contentType);
-    const response = await fetch(`${backendUrl}/upload/${submissionId}`, {
-      method: 'POST',
-      body: audioBlob,
-      headers: {
-        'Content-Type': contentType
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.statusText}`);
-    }
-    
-   return submissionId;
+    return submissionId;
   };
   
   const handleRecordingComplete = async (recording: Blob) => {
@@ -42,10 +36,8 @@ const HomePage: React.FC = () => {
     setError(null);
     
     try {
-      const submissionId = uuidv4();
-      
       // Upload the recording to the backend
-      await uploadToBackend(recording, recording.type || "audio/webm", submissionId);
+      const submissionId = await uploadToBackend(recording, recording.type || "audio/webm");
       
       // Navigate to the processing page
       navigate(`/processing/${submissionId}`);
@@ -74,13 +66,12 @@ const extensionToContentType = (extension: string) => {
     setError(null);
     
     try {
-      const submissionId = uuidv4();
       const pieces = file.name.split(".");
       const extension = pieces[pieces.length - 1];
       const contentType = extensionToContentType(extension);
       
       // Upload the file directly
-      await uploadToBackend(file, contentType, submissionId);
+      const submissionId = await uploadToBackend(file, contentType);
       
       // Navigate to the processing page
       navigate(`/processing/${submissionId}`);
