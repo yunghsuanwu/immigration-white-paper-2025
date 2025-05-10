@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader2, CheckCircle, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
-import Button from '../components/ui/Button';
 import { AudioSubmission, ProcessingStep, processingSteps } from '../types';
-import { transcribeAudio, formatForConsultation, filterAbusiveContent } from '../utils/mockApiService';
 
 const ProcessingPage: React.FC = () => {
   const { submissionId } = useParams<{ submissionId: string }>();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<ProcessingStep>('transcribing');
   const [progress, setProgress] = useState<number>(0);
-  const [submission, setSubmission] = useState<AudioSubmission | null>(null);
   const [error, setError] = useState<string | null>(null);
   
   const pollStatus = useCallback(async (submissionId: string) => {
@@ -25,94 +22,50 @@ const ProcessingPage: React.FC = () => {
   }, [submissionId]);
 
   useEffect(() => {
-    const updateProgressBars = async() => {
-      if (!submissionId) {
-        return;
-      }
-      try {
-        const submission = await pollStatus(submissionId) as AudioSubmission;
-        setSubmission(submission);
-        if (submission.status === "transcribing") {
-          setProgress(25);
-          return;
-        }
-        if (submission.status === "greenpaper") {
-          setProgress(50);
+    if (!submissionId) {
+      return;
+    }
+    let intervalId: number;
 
-        }
+    const pollAndProcess = async () => {
+      try {
+          const submission = await pollStatus(submissionId) as AudioSubmission;
+          updateSubmission(submission);
+          
+          // Update progress based on status
+          switch (submission.status) {
+            case 'transcribing': setProgress(25); break;
+            case 'greenpaper': setProgress(50); break;
+            case 'email': setProgress(75); break;
+            case 'completed': setProgress(100); break;
+            default: setProgress(0); // Or handle other statuses
+          }
+
+          // If completed or error, clear interval and navigate
+          if (submission.status === 'completed' || submission.status === 'error') {
+            clearInterval(intervalId);
+            if (submission.status === 'completed') {
+              // Automatically navigate to the submission page after a short delay
+              setTimeout(() => {
+                navigate(`/submission/${submissionId}`);
+              }, 1500);
+            }
+          }
       } catch (e) {
         setError('Submission not found. Please try recording again.');
         setCurrentStep('error');
       }
     };
-    updateProgressBars();
-    // Check if we have the submission in sessionStorage
-    const storedSubmission = sessionStorage.getItem(`submission_${submissionId}`);
-    if (!storedSubmission) {
-      return;
-    }
-    
-    // Get the recording blob from window object (in a real app, this would come from a server)
-    const recordingBlob = (window as any).submissionBlob;
-    if (!recordingBlob) {
-      setError('Recording not found. Please try recording again.');
-      setCurrentStep('error');
-      return;
-    }
-    
-    // Parse the stored submission and add the recording back
-    const parsedSubmission: AudioSubmission = JSON.parse(storedSubmission);
-    parsedSubmission.recording = recordingBlob;
-    setSubmission(parsedSubmission);
-    
-    // Start the processing pipeline
-    processSubmission(parsedSubmission);
+
+    intervalId = setInterval(pollAndProcess, 5000); // Poll every 5 seconds
+
+    return () => {
+      clearInterval(intervalId);
+    };
   }, [submissionId]);
   
-  const processSubmission = async (sub: AudioSubmission) => {
-    try {
-      // Step 1: Transcribe audio
-      setCurrentStep('transcribing');
-      setProgress(25);
-      const transcript = await transcribeAudio(sub.recording as Blob);
-      sub.transcript = transcript;
-      updateSubmission(sub);
-      setProgress(30);
-            
-      // Step 2: Format for consultation
-      setCurrentStep("greenpaper");
-      setProgress(50);
-      const formattedResponse = await formatForConsultation(transcript);
-      sub.formattedResponse = formattedResponse;
-      updateSubmission(sub);
-      setProgress(85);
-      
-      // Step 3: Filter abusive content
-      setCurrentStep('email');
-      setProgress(75);
-      const filteredResponse = await filterAbusiveContent(formattedResponse);
-      sub.filteredResponse = filteredResponse;
-      updateSubmission(sub);
-      
-      // Processing complete
-      setCurrentStep('completed');
-      setProgress(100);
-      
-      // Automatically navigate to the submission page after a short delay
-      setTimeout(() => {
-        navigate(`/submission/${submissionId}`);
-      }, 1500);
-      
-    } catch (err) {
-      console.error('Error processing submission:', err);
-      setError('An error occurred while processing your submission. Please try again.');
-      setCurrentStep('error');
-    }
-  };
-  
   const updateSubmission = (updatedSubmission: AudioSubmission) => {
-    setSubmission(updatedSubmission);
-    
+    setCurrentStep(updatedSubmission.status);
     // Update in sessionStorage (without the blob)
     const storageVersion = {
       ...updatedSubmission,
@@ -121,18 +74,12 @@ const ProcessingPage: React.FC = () => {
     sessionStorage.setItem(`submission_${submissionId}`, JSON.stringify(storageVersion));
   };
   
-  const retryProcessing = () => {
-    if (submission) {
-      processSubmission(submission);
-    }
-  };
-  
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <div className="space-y-4">
         <h1 className="text-3xl font-bold text-slate-800">Processing Your Submission</h1>
         <p className="text-lg text-slate-600">
-          We're turning your audio recording into a structured consultation response. This may take a moment.
+          We're turning your audio recording into structured responses. This may take a moment.
         </p>
       </div>
       
@@ -177,14 +124,6 @@ const ProcessingPage: React.FC = () => {
                   <div>
                     <h3 className="text-red-800 font-medium">Processing Error</h3>
                     <p className="text-red-700 mt-1">{error || 'An unexpected error occurred.'}</p>
-                    <Button 
-                      variant="primary" 
-                      className="mt-4"
-                      icon={<RefreshCw className="h-4 w-4" />}
-                      onClick={retryProcessing}
-                    >
-                      Try Again
-                    </Button>
                   </div>
                 </div>
               </div>
@@ -202,10 +141,6 @@ const ProcessingPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
-      
-      <div className="text-center text-sm text-slate-500">
-        Note: Your data is processed locally and not stored on any external servers.
-      </div>
     </div>
   );
 };
