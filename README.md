@@ -7,23 +7,22 @@ A Python server built with Chalice, meant to run on AWS Lambda. Frontend built w
 
 # Running locally
 
-You must have Python3 installed on a Unix-like system. AWS doesn't support past 3.12, so be sure to use that version.
+You must have Python 3.12.9 (the latest version supported by AWS) installed on a Unix-like system.
 
 Then:
 
 ```bash
-mkdir /tmp/audio
-mkdir /tmp/transcript
-mkdir /tmp/email
 cd backend
 pyenv local 3.12.9
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-chalice local --port 5000
+chalice local
 ```
 
-This will create a server at http://127.0.0.1:5000
+This will create a server at http://127.0.0.1:8000
+
+Use `python test.py <path-to-audio-file>` to test against a local server.
 
 For running the frontend:
 
