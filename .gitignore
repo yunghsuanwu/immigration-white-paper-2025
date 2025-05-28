@@ -7,6 +7,7 @@ deployments/
 
 *.m4a
 
+.DS_Store
 
 # Logs
 logs
